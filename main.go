@@ -3,41 +3,107 @@ package main
 import (
 	"fmt"
 	"log"
-	"postgresmodule"
+	"net/http"
+
+	"sse/postgresmodule"
+
+	"github.com/gin-gonic/gin"
 )
 
-func main() {
-	connectionString := "postgres://yourusername:yourpassword@localhost:5432/yourdb"
+type Dcount struct {
+	Keyword string
+	Count   int
+}
 
-	module, err := postgresmodule.NewPostgresModule(connectionString)
+type D struct {
+	L string
+	D string
+}
+
+func main() {
+
+	module, err := postgresmodule.SetupDatabase()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer module.Close()
 
-	// 示例：插入或更新 Dcount 表
-	err = module.InsertOrUpdateDcount("keyword1", 100)
-	if err != nil {
-		log.Fatal(err)
-	}
+	r := gin.Default()
 
-	// 示例：查询 Dcount 表
-	count, err := module.GetDcount("keyword1")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Dcount:", count)
+	r.POST("/getDcount", func(c *gin.Context) {
+		var input struct {
+			Keyword string `json:"keyword"`
+		}
+		if err := c.BindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 
-	// 示例：插入或更新 D 表
-	err = module.InsertOrUpdateD("l1", "data1")
-	if err != nil {
-		log.Fatal(err)
-	}
+		var result Dcount
+		count, err := module.GetDcount(input.Keyword)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("Dcount:", count)
+		result.Keyword = input.Keyword
+		result.Count = count
 
-	// 示例：查询 D 表
-	d, err := module.GetD("l1")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("D:", d)
+		c.JSON(http.StatusOK, result)
+	})
+
+	r.POST("/UpdateDcount", func(c *gin.Context) {
+		var input struct {
+			Keyword  string `json:"keyword"`
+			CountAdd int    `json:"countadd"`
+		}
+		if err := c.BindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		err = module.UpdateCount(input.Keyword, input.CountAdd)
+		if err != nil {
+			log.Fatal(err)
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Success"})
+	})
+
+	r.POST("/getD", func(c *gin.Context) {
+		var input struct {
+			L string `json:"l"`
+		}
+		if err := c.BindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		var result D
+		d, err := module.GetD(input.L)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("D:", d)
+		result.L = input.L
+		result.D = d
+		c.JSON(http.StatusOK, result)
+	})
+
+	r.POST("/UpdateD", func(c *gin.Context) {
+		var input D
+		if err := c.BindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		err = module.InsertOrUpdateD(input.L, input.D)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Success"})
+	})
+
+	r.Run(":8080")
+
 }
