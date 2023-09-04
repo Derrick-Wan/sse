@@ -5,9 +5,9 @@ import (
 	"log"
 	"net/http"
 
-	"sse/postgresmodule"
-
 	"github.com/gin-gonic/gin"
+
+	"github.com/Derrick-Wan/sse/pkg/postgresmodule"
 )
 
 type Dcount struct {
