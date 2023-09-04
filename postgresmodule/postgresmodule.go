@@ -1,6 +1,8 @@
 package postgresmodule
 
 import (
+	"fmt"
+
 	"github.com/go-pg/pg/v10"
 	"github.com/go-pg/pg/v10/orm"
 )
@@ -35,20 +37,13 @@ func (p *PostgresModule) Close() {
 }
 
 func (p *PostgresModule) UpdateCount(keyword string, count int) error {
-	// Begin a transaction
-	tx, err := p.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	// Get the current count value
-	var currentCount int
-	_, err = tx.Query(pg.Scan(&currentCount), "SELECT count FROM dcounts WHERE keyword = ?", keyword)
+	dcount := &Dcount{Keyword: keyword}
+	err := p.db.Model(dcount).WherePK().Select()
 	if err != nil {
 		if err == pg.ErrNoRows {
-			// If the row doesn't exist, insert a new row with the given count value
-			_, err = tx.Exec("INSERT INTO dcounts (keyword, count) VALUES (?, ?)", keyword, count)
+			// If the record does not exist, create a new one
+			dcount.Count = count
+			_, err = p.db.Model(dcount).Insert()
 			if err != nil {
 				return err
 			}
@@ -56,18 +51,15 @@ func (p *PostgresModule) UpdateCount(keyword string, count int) error {
 			return err
 		}
 	} else {
-		// If the row exists, update the count value
-		_, err = tx.Exec("UPDATE dcounts SET count = ? WHERE keyword = ?", currentCount+count, keyword)
+		// If the record already exists, update the count value
+		dcount.Count += count
+		_, err = p.db.Model(dcount).WherePK().Update()
 		if err != nil {
 			return err
 		}
 	}
 
-	// Commit the transaction
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
+	fmt.Printf("Dcount for keyword %s updated to %d\n", keyword, dcount.Count)
 
 	return nil
 }
